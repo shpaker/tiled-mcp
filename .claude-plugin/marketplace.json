@@ -1,0 +1,14 @@
+{
+  "name": "tiled-mcp",
+  "description": "Tiled map editor tools for AI coding agents.",
+  "owner": {
+    "name": "A.Shpak"
+  },
+  "plugins": [
+    {
+      "name": "tiled",
+      "source": "./",
+      "description": "Work with the maps open in the Tiled map editor: read, check against project classes, render, and edit objects with undo."
+    }
+  ]
+}

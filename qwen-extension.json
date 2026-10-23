@@ -1,0 +1,9 @@
+{
+  "name": "tiled",
+  "version": "0.1.0",
+  "mcpServers": {
+    "tiled": {
+      "command": "${extensionPath}${/}bin${/}tiled-mcp"
+    }
+  }
+}

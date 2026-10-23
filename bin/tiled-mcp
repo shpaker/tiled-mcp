@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# Starts tiled-mcp for the agent. On first use downloads the release binary
+# matching this plugin's VERSION into ~/.cache/tiled-mcp/<version>/ and checks
+# its sha256 against the release's checksums.txt.
+#
+# TILED_MCP_DEV=1 builds from this checkout instead (needs Go).
+#
+# Standard output belongs to the MCP protocol: all messages go to stderr.
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+version="$(tr -d '[:space:]' <"$root/VERSION")"
+repository="shpaker/tiled-mcp"
+
+if [[ "${TILED_MCP_DEV:-}" == 1 ]]; then
+  binary="$root/.build/tiled-mcp"
+  (cd "$root" && go build -o "$binary" ./cmd/tiled-mcp) >&2
+  exec "$binary" "$@"
+fi
+
+case "$(uname -s)" in
+Darwin) os=darwin ;;
+Linux) os=linux ;;
+MINGW* | MSYS* | CYGWIN*) os=windows ;;
+*)
+  echo "tiled-mcp: unsupported system $(uname -s)" >&2
+  exit 1
+  ;;
+esac
+case "$(uname -m)" in
+x86_64 | amd64) arch=amd64 ;;
+arm64 | aarch64) arch=arm64 ;;
+*)
+  echo "tiled-mcp: unsupported architecture $(uname -m)" >&2
+  exit 1
+  ;;
+esac
+
+suffix=""
+if [[ $os == windows ]]; then
+  suffix=".exe"
+fi
+dir="${TILED_MCP_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/tiled-mcp}/$version"
+binary="$dir/tiled-mcp$suffix"
+
+sha256() {
+  if command -v sha256sum >/dev/null; then
+    sha256sum "$1" | awk '{print $1}'
+  else
+    shasum -a 256 "$1" | awk '{print $1}'
+  fi
+}
+
+if [[ ! -x "$binary" ]]; then
+  archive="tiled-mcp_${version}_${os}_${arch}.tar.gz"
+  # TILED_MCP_RELEASE_URL points the launcher at a local build when testing.
+  url="${TILED_MCP_RELEASE_URL:-https://github.com/$repository/releases/download/v$version}"
+  work="$(mktemp -d)"
+  echo "tiled-mcp: downloading $archive" >&2
+  curl -fsSL --retry 3 -o "$work/$archive" "$url/$archive"
+  curl -fsSL --retry 3 -o "$work/checksums.txt" "$url/checksums.txt"
+  expected="$(awk -v name="$archive" '$2 == name {print $1}' "$work/checksums.txt")"
+  actual="$(sha256 "$work/$archive")"
+  if [[ -z "$expected" || "$expected" != "$actual" ]]; then
+    echo "tiled-mcp: checksum mismatch for $archive" >&2
+    rm -rf "$work"
+    exit 1
+  fi
+  tar -xzf "$work/$archive" -C "$work"
+  mkdir -p "$dir"
+  # Several agent sessions may start at once: move into place atomically.
+  mv "$work/tiled-mcp$suffix" "$binary.$$"
+  chmod +x "$binary.$$"
+  mv -f "$binary.$$" "$binary"
+  rm -rf "$work"
+fi
+
+exec "$binary" "$@"

@@ -11,8 +11,9 @@ reaches the disk until the map is saved.
 
 ## Loop
 
-1. **Connect.** `tiled_status`. If the extension is missing or outdated, ask the
-   user, then `tiled_install_extension`. If Tiled is not connected,
+1. **Connect.** `tiled_status`. If the extension is missing, ask the user, then
+   `tiled_install_extension`; an older one updates itself, and for a newer one
+   follow `next`. If Tiled is not connected,
    `tiled_open` with the project (`.tiled-project`) and the map, wait a few
    seconds, check `tiled_status` again.
 2. **Read.** `list_open_maps`, `map_summary`, `list_property_types` (what

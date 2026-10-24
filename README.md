@@ -58,7 +58,10 @@ sha256 against the release's `checksums.txt`.
 
 Then ask the agent to work with a map. It calls `tiled_status`, and with your
 consent `tiled_install_extension`, which writes the extension into Tiled's
-global extensions folder; a running Tiled loads it without a restart.
+global extensions folder; a running Tiled loads it without a restart. After a
+plugin update, `tiled-mcp` rewrites an extension installed by an older version
+when it starts, so Tiled switches to the new binary on its own; it never
+installs the extension without consent or replaces a newer one.
 
 ## Tools
 

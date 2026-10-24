@@ -36,8 +36,9 @@ type Server struct {
 	client  *hub.Client
 	mcp     *mcp.Server
 
-	mu        sync.Mutex
-	extension []string // names of the tools declared by the extension
+	mu          sync.Mutex
+	extension   []string // names of the tools declared by the extension
+	updatedFrom string   // version of the extension this server replaced
 }
 
 // New builds the server with its own tools.
@@ -54,13 +55,16 @@ func New(options Options) *Server {
 }
 
 const instructions = `Works with the maps open in the Tiled map editor through a Tiled extension.
-Call tiled_status first. If the extension is missing or outdated, ask the user and call tiled_install_extension; if Tiled is not running, call tiled_open.
+Call tiled_status first. If the extension is missing, ask the user and call tiled_install_extension (an older one is updated automatically); if Tiled is not running, call tiled_open.
 Edits happen in the open editor with undo; nothing is written to disk until the map is saved.`
 
 // Run serves MCP over stdio until the agent disconnects.
 func (s *Server) Run(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	// A running Tiled reloads an updated extension, which then restarts the
+	// hub from this server's binary.
+	s.updateExtension()
 	// Take the extension's tools before serving, so the agent's first
 	// tools/list already has them when Tiled is running.
 	revision := -1
@@ -268,14 +272,25 @@ type installedState struct {
 	Installed bool   `json:"installed"`
 	Version   string `json:"version,omitempty"`
 	Current   bool   `json:"current"`
+	// Updated is set when this server replaced an older extension.
+	Updated string `json:"updated,omitempty"`
 }
 
 func (s *Server) status(ctx context.Context) status {
 	result := status{Server: s.options.Version}
 
+	// Another agent with an older tiled-mcp may have installed its extension
+	// since this server started.
+	s.updateExtension()
 	config, path, err := extension.Installed()
 	result.Extension = &installedState{Path: path, Installed: err == nil, Version: config.Version}
 	result.Extension.Current = err == nil && config.Version == s.options.Version && config.Binary == s.options.Binary
+	s.mu.Lock()
+	if s.updatedFrom != "" {
+		result.Extension.Updated = s.updatedFrom + " → " + s.options.Version
+	}
+	s.mu.Unlock()
+	newer, _ := olderVersion(s.options.Version, config.Version)
 
 	hubStatus, err := s.client.Status(ctx)
 	switch {
@@ -298,6 +313,9 @@ func (s *Server) status(ctx context.Context) status {
 	switch {
 	case !result.Extension.Installed:
 		result.Next = "The extension is not installed: ask the user, then call tiled_install_extension."
+	case newer:
+		result.Next = fmt.Sprintf("The extension is from a newer tiled-mcp (%s) than this server (%s): "+
+			"suggest the user update the plugin; do not call tiled_install_extension.", config.Version, s.options.Version)
 	case !result.Extension.Current:
 		result.Next = "The extension is from another tiled-mcp: ask the user, then call tiled_install_extension to update it."
 	case !result.Connected:

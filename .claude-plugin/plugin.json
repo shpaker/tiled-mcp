@@ -1,6 +1,6 @@
 {
   "name": "tiled",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Work with the maps open in the Tiled map editor: read, check against project classes, render, and edit objects with undo.",
   "author": {
     "name": "A.Shpak"

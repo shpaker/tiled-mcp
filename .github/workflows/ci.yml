@@ -7,15 +7,26 @@ on:
 
 jobs:
   check:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
       - run: go vet ./...
-      - run: go test -race ./...
+      # TestLauncher runs this system's launcher (bin/tiled-mcp, or
+      # bin\tiled-mcp.cmd on Windows) against a release built in the test.
+      - run: go test ./...
+      - name: Race detector
+        if: runner.os == 'Linux'
+        run: go test -race ./...
       - name: Launcher
+        if: runner.os == 'Linux'
         run: shellcheck bin/tiled-mcp
       - name: Extension syntax
+        if: runner.os == 'Linux'
         run: node --check extension/tiled-mcp.js

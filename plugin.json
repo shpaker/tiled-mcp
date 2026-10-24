@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "tiled",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Work with the maps open in the Tiled map editor: read, check against project classes, render, and edit objects with undo.",
   "author": {
     "name": "A.Shpak"

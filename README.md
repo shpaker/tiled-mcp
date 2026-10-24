@@ -27,8 +27,8 @@ moves JSON.
 ## Install
 
 Requires Tiled 1.12 (older versions lack parts of the scripting API the
-extension uses), macOS or Linux (Windows: Claude Code only, through Git Bash),
-`curl` and `tar`.
+extension uses), and macOS or Linux with `bash`, `curl` and `tar`, or Windows
+10 1803 or later (no Git Bash needed: Windows has its own `curl` and `tar`).
 
 **Claude Code**
 
@@ -51,9 +51,10 @@ then install `tiled` from `/plugins`.
 qwen extensions install https://github.com/shpaker/tiled-mcp
 ```
 
-On first start the plugin's launcher (`bin/tiled-mcp`) downloads the binary for
-its version from the GitHub release into `~/.cache/tiled-mcp/<version>/` and
-checks its sha256 against the release's `checksums.txt`.
+On first start the plugin's launcher (`bin/tiled-mcp`; on Windows agents run
+`bin/tiled-mcp.cmd` for the same command) downloads the binary for its version
+from the GitHub release into `~/.cache/tiled-mcp/<version>/` and checks its
+sha256 against the release's `checksums.txt`.
 
 Then ask the agent to work with a map. It calls `tiled_status`, and with your
 consent `tiled_install_extension`, which writes the extension into Tiled's

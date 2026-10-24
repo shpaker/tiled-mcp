@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -38,12 +40,37 @@ func TestManifestsMatchVersion(t *testing.T) {
 	}
 }
 
+// Manifests name bin/tiled-mcp: bash runs it on macOS and Linux, and on
+// Windows agents find bin/tiled-mcp.cmd for it through PATHEXT.
+func TestLaunchersExist(t *testing.T) {
+	bin := filepath.Join("..", "..", "bin")
+	for _, name := range []string{"tiled-mcp", "tiled-mcp.cmd", "download.ps1"} {
+		if _, err := os.Stat(filepath.Join(bin, name)); err != nil {
+			t.Error(err)
+		}
+	}
+}
+
 func TestLauncherIsExecutable(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows has no executable bit")
+	}
 	info, err := os.Stat(filepath.Join("..", "..", "bin", "tiled-mcp"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if info.Mode()&0o111 == 0 {
 		t.Fatal("bin/tiled-mcp is not executable")
+	}
+}
+
+// bash fails on CRLF; .gitattributes keeps the launcher LF in every checkout.
+func TestLauncherHasLFEndings(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("..", "..", "bin", "tiled-mcp"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(data, []byte("\r")) {
+		t.Fatal("bin/tiled-mcp has CRLF line endings")
 	}
 }

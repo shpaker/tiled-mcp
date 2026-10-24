@@ -1,0 +1,6 @@
+# The launcher runs under bash on macOS and Linux; CRLF breaks it there.
+bin/tiled-mcp text eol=lf
+*.sh          text eol=lf
+# cmd.exe misreads labels in batch files with LF endings.
+*.cmd         text eol=crlf
+*.ps1         text eol=crlf

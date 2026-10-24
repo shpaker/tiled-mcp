@@ -38,6 +38,9 @@ set "binary=%dir%\tiled-mcp.exe"
 
 if exist "%binary%" goto run
 rem Standard input is the agent's too: PowerShell must not read from it.
+rem PSModulePath inherited from PowerShell 7 hides Windows PowerShell's own
+rem modules.
+set "PSModulePath="
 powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%~dp0download.ps1" -Version "%version%" -Arch "%arch%" -Dir "%dir%" <nul 1>&2
 if errorlevel 1 exit /b 1
 goto run

@@ -39,7 +39,13 @@ try {
   $expected = Get-Content (Join-Path $work 'checksums.txt') |
     ForEach-Object { $fields = -split $_; if ($fields[1] -eq $archive) { $fields[0] } } |
     Select-Object -First 1
-  $actual = (Get-FileHash -Algorithm SHA256 (Join-Path $work $archive)).Hash
+  # .NET rather than Get-FileHash, which needs a module PowerShell may not find.
+  $stream = [IO.File]::OpenRead((Join-Path $work $archive))
+  try {
+    $actual = -join ([Security.Cryptography.SHA256]::Create().ComputeHash($stream) | ForEach-Object { $_.ToString('x2') })
+  } finally {
+    $stream.Close()
+  }
   if (-not $expected -or $expected -ne $actual) {
     throw "tiled-mcp: checksum mismatch for $archive"
   }

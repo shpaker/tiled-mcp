@@ -321,9 +321,16 @@
     if (args.polygon !== undefined) object.polygon = args.polygon;
   }
 
+  // isOpen tells whether an asset is still open in Tiled without touching
+  // it: a closed asset may already be deleted.
+  function isOpen(asset) {
+    return tiled.openAssets.indexOf(asset) >= 0;
+  }
+
   // edit runs fn as one undo step and reports the map's problems. Tiled
   // swallows exceptions thrown inside a macro, so they are caught here.
   function edit(map, text, fn) {
+    const fileName = map.fileName;
     let failure = null;
     const value = map.macro("tiled-mcp: " + text, function () {
       try {
@@ -332,11 +339,19 @@
         failure = e;
       }
     });
+    // A script can still close the map in a way run_script does not catch,
+    // such as a Tiled action. The map is gone then and must not be touched.
+    const closed = !isOpen(map);
     if (failure) {
       throw new Error(
         String(failure && failure.message ? failure.message : failure) +
-          " (changes made before the error stay in this undo step; call undo to revert them)"
+          (closed
+            ? " (the map was closed during the edit)"
+            : " (changes made before the error stay in this undo step; call undo to revert them)")
       );
+    }
+    if (closed) {
+      return { result: value, closed: fileName, next: "The map was closed during the edit without saving." };
     }
     const problems = validateMap(map);
     return {
@@ -765,19 +780,63 @@
     }
   );
 
+  // scriptTiled is the `tiled` a script sees. Closing the map whose undo step
+  // the script runs in makes Tiled end the step on a deleted document and
+  // crash, so tiled.close(map) only asks to close it after the step, and the
+  // script cannot reopen it before then.
+  function scriptTiled(map, closing) {
+    return new Proxy(tiled, {
+      get: function (target, key) {
+        if (key === "close") {
+          return function (asset) {
+            if (asset !== map) return target.close(asset);
+            closing.requested = true;
+            return true;
+          };
+        }
+        if (key === "open") {
+          return function (fileName) {
+            const asset = target.open(fileName);
+            if (closing.requested && asset === map) {
+              throw new Error(
+                "the script closes " + FileInfo.fileName(map.fileName) + " when it ends, so it cannot reopen it; " +
+                  "reopen it in another run_script call"
+              );
+            }
+            return asset;
+          };
+        }
+        return target[key];
+      },
+    });
+  }
+
   tool(
     "run_script",
     "Runs JavaScript inside Tiled with the Tiled Scripting API (https://www.mapeditor.org/docs/scripting/). " +
-      "`map` is the chosen map; the code runs as one undo step and its return value comes back as JSON. " +
-      "The code can do anything Tiled scripts can, including reading and writing files.",
+      "`map` is the chosen map; the code runs as one undo step on it and its return value comes back as JSON. " +
+      "The code can do anything Tiled scripts can, including reading and writing files and opening, saving and " +
+      "closing other maps. `tiled.close(map)` closes `map` when the script ends, discarding unsaved changes; " +
+      "the script cannot reopen it before then.",
     { map: mapArgument, code: { type: "string", description: "Function body, e.g. `return map.layerCount`." } },
     ["code"],
     function (args) {
       const map = findMap(args.map);
       const body = new Function("map", "tiled", args.code);
-      return edit(map, "run script", function () {
-        return plain(body(map, tiled));
+      // The undo step itself marks the map modified, so look before it.
+      const modified = map.modified;
+      const closing = { requested: false };
+      const result = edit(map, "run script", function () {
+        return plain(body(map, scriptTiled(map, closing)));
       });
+      if (!closing.requested || !isOpen(map)) return result;
+      const fileName = map.fileName;
+      tiled.close(map);
+      return {
+        result: result.result,
+        closed: fileName,
+        next: modified ? "Closed without saving: its earlier unsaved changes are lost." : "Closed without saving.",
+      };
     },
     { destructiveHint: true }
   );

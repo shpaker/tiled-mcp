@@ -588,10 +588,18 @@
     function (args) {
       const map = findMap(args.map);
       const longest = args.size || 1024;
-      const width = map.width * map.tileWidth;
-      const height = map.height * map.tileHeight;
-      const scale = longest / Math.max(width, height, 1);
-      const image = map.toImage(Qt.size(Math.max(1, Math.round(width * scale)), Math.max(1, Math.round(height * scale))));
+      // The scripting API has no pixel size of the map, and toImage(size)
+      // letterboxes when the size has another aspect ratio. So render at the
+      // size Tiled's renderer gives (any orientation, layer offsets, image
+      // layers, infinite maps) and scale that.
+      let image = map.toImage();
+      if (image.width < 1 || image.height < 1) throw new Error("Tiled could not render the map");
+      const scale = longest / Math.max(image.width, image.height);
+      const width = Math.max(1, Math.round(image.width * scale));
+      const height = Math.max(1, Math.round(image.height * scale));
+      if (width !== image.width || height !== image.height) {
+        image = image.scaled(width, height, Image.IgnoreAspectRatio, Image.SmoothTransformation);
+      }
       return {
         content: [{ type: "image", mimeType: "image/png", data: Base64.encode(image.saveToData("PNG")) }],
       };
